@@ -19,8 +19,10 @@
     --font-max: 1.15rem;
   }
   html { font-size: clamp(var(--font-min), var(--font-preferred), var(--font-max)); }
-  body { margin:0; font-family:Inter, Roboto, Arial, sans-serif; color:#111; background:#fafafa; }
-  header{padding:0.6rem 1rem; display:flex;align-items:center;gap:0.6rem}
+  body { margin:0; font-family:Inter, Roboto, Arial, sans-serif; color:#111; background:#f4f6f9; }
+  header{padding:0.7rem clamp(1rem,2vw,2.4rem); display:flex;align-items:center;gap:0.6rem; background:#fff; box-shadow:0 1px 0 rgba(0,0,0,0.05);}
+  header strong{font-size:1.05em;}
+  header a{color:var(--accent); text-decoration:none; font-weight:600;}
   .stage { height: calc(100vh - 3rem); display:grid; grid-template-columns: minmax(var(--sidebar-min), var(--sidebar-max)) var(--gutter) 1fr; gap:0; padding: calc(var(--pad)); box-sizing:border-box; }
   .panel { background:#fff; border-radius: calc(var(--radius)); padding: calc(var(--pad)); box-sizing:border-box; box-shadow: 0 0 0 1px rgba(0,0,0,0.03) inset; overflow:auto; min-height:0; }
   .left { display:flex; flex-direction:column; gap:var(--gap); }
@@ -46,7 +48,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-<header><strong>Cooling Box Simulator</strong></header>
+<header><a href="../../index.html" class="home-link">← Index</a><strong>Cooling Box Simulator</strong></header>
 
 <div class="stage" id="stage">
   <div class="panel left" id="leftPanel">

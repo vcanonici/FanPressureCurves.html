@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Calculadoras de Pressão Intragabinete</title>
+  <style>
+    :root{
+      --accent:#0077cc;
+      --accent-soft:rgba(0,119,204,0.12);
+      --bg:radial-gradient(circle at 20% 20%, rgba(0,119,204,0.16), transparent 55%),
+           radial-gradient(circle at 80% 0%, rgba(0,180,160,0.18), transparent 50%),
+           #0f172a;
+      --text:#0f172a;
+      --muted:#5d6670;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:"Inter", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:#0f172a; min-height:100vh;}
+    header{padding:clamp(2.2rem,5vw,4rem) clamp(1.8rem, 5vw, 4.4rem); color:#0f172a;}
+    .badge{display:inline-flex; align-items:center; gap:0.4rem; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.14em; background:rgba(255,255,255,0.24); color:#fff; padding:0.45rem 0.8rem; border-radius:999px; backdrop-filter:blur(6px);}
+    h1{margin:1.6rem 0 0.8rem; font-size:clamp(2.2rem, 3.8vw, 3.6rem); color:#fff;}
+    p.lead{max-width:52rem; color:rgba(255,255,255,0.85); font-size:clamp(1.05rem, 1.45vw, 1.35rem); line-height:1.6; margin-bottom:2.6rem;}
+    main{background:#f8fafc; border-radius:2.2rem 2.2rem 0 0; padding:clamp(2.4rem, 5vw, 3.6rem); box-shadow:0 -24px 60px rgba(15,23,42,0.22); min-height:60vh;}
+    .grid{display:grid; gap:clamp(1.4rem, 3vw, 2.6rem); grid-template-columns:repeat(auto-fit, minmax(18rem, 1fr));}
+    .card{background:#fff; border-radius:1.4rem; padding:1.8rem; position:relative; overflow:hidden; border:1px solid rgba(15,23,42,0.04); box-shadow:0 20px 45px rgba(15,23,42,0.12); transition:transform 0.25s, box-shadow 0.25s;}
+    .card:hover{transform:translateY(-6px); box-shadow:0 26px 60px rgba(15,23,42,0.16);}
+    .card::after{content:""; position:absolute; inset:0; background:linear-gradient(140deg, rgba(0,119,204,0.08), transparent 55%); pointer-events:none;}
+    .card h2{margin:0 0 0.6rem; font-size:1.35rem; color:var(--text);}
+    .card p{margin:0 0 1.4rem; color:var(--muted); line-height:1.6;}
+    .meta{display:flex; flex-wrap:wrap; gap:0.4rem; font-size:0.78rem; color:var(--muted); margin-bottom:1.4rem; text-transform:uppercase; letter-spacing:0.08em;}
+    .card a{display:inline-flex; align-items:center; gap:0.5rem; padding:0.6rem 1rem; border-radius:999px; background:var(--accent); color:#fff; font-weight:600; text-decoration:none; box-shadow:0 10px 25px rgba(0,119,204,0.35); transition:transform 0.2s, box-shadow 0.2s;}
+    .card a:hover{transform:translateY(-2px); box-shadow:0 18px 36px rgba(0,119,204,0.38);}
+    footer{margin-top:clamp(3rem, 6vw, 4.4rem); font-size:0.85rem; color:#7a8698;}
+    footer a{color:#4a6fae; text-decoration:none;}
+    @media (max-width:720px){ main{border-radius:1.6rem 1.6rem 0 0;} header{padding-bottom:2rem;} }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="badge">Fan Pressure Suite</span>
+    <h1>Calculadoras de pressão e fluxo intragabinete</h1>
+    <p class="lead">Ferramentas interativas para comparar ventoinhas, dimensionar gabinetes e estudar o impacto da resistência e da temperatura no equilíbrio de pressão.</p>
+  </header>
+  <main>
+    <div class="grid">
+      <article class="card">
+        <div class="meta">Fluxo × velocidade · Resistência efetiva</div>
+        <h2>Simulador de Fluxo / Pressão</h2>
+        <p>Explora cenários de pressão positiva ou negativa em função da velocidade relativa das ventoinhas de entrada e saída. Ajusta o volume da caixa e o fator de fuga para obter a resistência efetiva.</p>
+        <a href="calculators/dynamic-speed/">Abrir simulador</a>
+      </article>
+      <article class="card">
+        <div class="meta">Temperatura → PWM · Curvas por grupo</div>
+        <h2>Simulador Temperatura × Velocidade</h2>
+        <p>Define curvas personalizadas de velocidade por temperatura para cada grupo de ventoinhas, calcula fluxo líquido e pressão e exporta os resultados para análise.</p>
+        <a href="calculators/temperature-response/">Abrir simulador</a>
+      </article>
+    </div>
+    <footer>
+      Conteúdo licenciado sob <a href="LICENSE">MIT</a>. Consulte a documentação detalhada em cada diretório para fórmulas e instruções.
+    </footer>
+  </main>
+</body>
+</html>
