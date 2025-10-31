@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <title>Simulador de Fluxo / Pressão da Caixa — Dinâmico</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--accent:#0077cc;--muted:#666}
+    body{font-family:Inter,Arial,Helvetica,sans-serif;margin:18px;color:#111}
+    h1{font-size:18px;margin:0 0 8px 0}
+    .controls{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    .panel{border:1px solid #e2e2e2;padding:10px;border-radius:8px;background:#fff}
+    label{display:block;font-size:13px;margin-top:8px;color:var(--muted)}
+    input[type=number], input[type=text], select{width:100%;padding:6px;margin-top:4px;box-sizing:border-box}
+    .groups{margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+    .grp{display:grid;grid-template-columns: 1fr 80px 80px 80px 90px 70px 40px;gap:6px;align-items:center;padding:6px;border-radius:6px;background:#fafafa;border:1px solid #f0f0f0}
+    .grp small{color:#888;font-size:12px}
+    .row-actions{display:flex;gap:6px}
+    button{padding:8px 10px;border-radius:6px;border:1px solid #d0d0d0;background:#fff;cursor:pointer}
+    button.primary{background:var(--accent);color:#fff;border-color:transparent}
+    .canvas-wrap{width:100%;max-width:1200px;margin-top:12px;position:relative}
+    /* 16:9 frame */
+    .frame-16-9{width:100%;height:0;padding-top:56.25%;position:relative;background:#fff;border:1px solid #eee;border-radius:8px}
+    canvas{position:absolute;left:0;top:0;width:100%!important;height:100%!important}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .legend-note{font-size:12px;color:#555;margin-top:6px}
+    .small{font-size:12px;color:#666}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <h1>Simulador Dinâmico: Fluxo por Grupo e Pressão Interna (16:9)</h1>
+
+  <div class="controls">
+    <div class="panel">
+      <strong>Parâmetros globais</strong>
+      <label>Resistência da caixa R (mmH2O / CFM²)</label>
+      <input id="R" type="number" step="1e-6" value="0.00001" />
+      <label>Passos de velocidade</label>
+      <input id="steps" type="number" value="100" min="10" max="1000" />
+      <div class="small">Ajusta R para representar filtros/obstrução. Valores úteis: 1e-6 a 1e-4.</div>
+
+      <hr style="margin:10px 0">
+
+      <strong>Adicionar grupo</strong>
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:6px;margin-top:8px">
+        <input id="add_name" type="text" placeholder="Nome (ex: P12 Pro)" />
+        <select id="add_role"><option value="in">Intake</option><option value="out">Exhaust</option></select>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">
+        <input id="add_n" type="number" value="1" min="0" />
+        <input id="add_q" type="number" value="77" step="0.1" />
+        <input id="add_sp" type="number" value="6.9" step="0.1" />
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button id="addBtn" class="primary">Adicionar grupo</button>
+        <button id="resetDefaults">Restaurar por defeito</button>
+      </div>
+
+      <hr style="margin:10px 0">
+
+      <strong>Grupos configurados</strong>
+      <div class="groups" id="groupsList" aria-live="polite"></div>
+
+      <div class="legend-note">Cada grupo representa N ventoinhas em paralelo. Q livre em CFM por ventoinha. Pressão estática usada apenas para referência.</div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <strong>Controlo e export</strong>
+          <div class="small">Escolhe os grupos e clica em Plot para atualizar.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="plotBtn" class="primary">Plot</button>
+          <button id="exportCsvBtn">Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="toolbar" style="margin-top:10px">
+        <label style="display:inline-block"><input id="showGroupLines" type="checkbox" checked /> Mostrar linhas de grupos</label>
+        <label style="display:inline-block"><input id="showPressureLine" type="checkbox" checked /> Mostrar linha de pressão</label>
+      </div>
+
+      <div class="canvas-wrap">
+        <div class="frame-16-9">
+          <canvas id="chartCanvas"></canvas>
+        </div>
+      </div>
+
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <div class="small">Ponto de equilíbrio = onde Q in = Q out.</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Modelo e UI dinâmico
+   Usa os mesmos princípios: Q ~ s, P_box = R * Q_net^2 * sign(Q_net)
+   Interface permite adicionar/remover/editar grupos e marcar intake/exhaust.
+*/
+
+// Helpers
+function sign(x){ return x>0?1:(x<0?-1:0); }
+function linQ(Qfree, s){ return Qfree * s; }
+
+// Paleta de cores (reutilizável)
+const PALETTE = [
+  'rgba(216,127,0,1)', 'rgba(77,166,255,1)', 'rgba(0,127,76,1)',
+  'rgba(153,51,255,1)', 'rgba(255,99,71,1)', 'rgba(0,180,200,1)',
+  'rgba(200,150,0,1)', 'rgba(120,120,120,1)', 'rgba(220,100,200,1)'
+];
+
+// Estado dos grupos
+let groups = [];
+
+// Elementos
+const groupsList = document.getElementById('groupsList');
+const addBtn = document.getElementById('addBtn');
+const plotBtn = document.getElementById('plotBtn');
+const exportCsvBtn = document.getElementById('exportCsvBtn');
+const resetDefaultsBtn = document.getElementById('resetDefaults');
+const showGroupLines = document.getElementById('showGroupLines');
+const showPressureLine = document.getElementById('showPressureLine');
+
+const ctx = document.getElementById('chartCanvas').getContext('2d');
+let chart = null;
+
+// Funções UI
+function renderGroups(){
+  groupsList.innerHTML = '';
+  groups.forEach((g, idx) => {
+    const div = document.createElement('div');
+    div.className = 'grp';
+    div.innerHTML = `
+      <div>
+        <input data-idx="${idx}" class="g_name" value="${g.name}" style="width:100%;padding:6px" />
+        <small>${g.role === 'in' ? 'Intake' : 'Exhaust'}</small>
+      </div>
+      <div><input data-idx="${idx}" class="g_n" type="number" value="${g.n}" min="0" /></div>
+      <div><input data-idx="${idx}" class="g_q" type="number" value="${g.Qfree}" step="0.1" /></div>
+      <div><input data-idx="${idx}" class="g_sp" type="number" value="${g.SPmax}" step="0.1" /></div>
+      <div>
+        <select data-idx="${idx}" class="g_role">
+          <option value="in" ${g.role==='in'?'selected':''}>Intake</option>
+          <option value="out" ${g.role==='out'?'selected':''}>Exhaust</option>
+        </select>
+        <small style="display:block;margin-top:6px">${g.rpm} rpm</small>
+      </div>
+      <div><input data-idx="${idx}" class="g_rpm" type="number" value="${g.rpm}" /></div>
+      <div class="row-actions">
+        <button data-idx="${idx}" class="dup">⤷</button>
+        <button data-idx="${idx}" class="del">✕</button>
+      </div>`;
+    groupsList.appendChild(div);
+
+    // attach handlers
+    div.querySelectorAll('input,select').forEach(el=>{
+      el.addEventListener('change', ()=> {
+        const i = Number(el.dataset.idx);
+        groups[i].name = div.querySelector('.g_name').value;
+        groups[i].n = Number(div.querySelector('.g_n').value) || 0;
+        groups[i].Qfree = Number(div.querySelector('.g_q').value) || 0;
+        groups[i].SPmax = Number(div.querySelector('.g_sp').value) || 0;
+        groups[i].role = div.querySelector('.g_role').value;
+        groups[i].rpm = Number(div.querySelector('.g_rpm').value) || 1;
+      });
+    });
+    div.querySelector('.del').addEventListener('click', ()=> { groups.splice(idx,1); renderGroups(); });
+    div.querySelector('.dup').addEventListener('click', ()=> { groups.splice(idx+1,0,JSON.parse(JSON.stringify(g))); renderGroups(); });
+  });
+}
+
+// Adicionar grupo via UI
+addBtn.addEventListener('click', ()=>{
+  const name = document.getElementById('add_name').value.trim() || 'Grupo';
+  const role = document.getElementById('add_role').value;
+  const n = Number(document.getElementById('add_n').value)||1;
+  const Q = Number(document.getElementById('add_q').value)||0;
+  const sp = Number(document.getElementById('add_sp').value)||0;
+  const rpm = 3000;
+  groups.push({ name, role, n, Qfree: Q, SPmax: sp, rpm });
+  renderGroups();
+});
+
+// Reset defaults
+resetDefaultsBtn.addEventListener('click', ()=>{
+  groups = [
+    { name: 'Arctic P12 Silent', role:'in', n:3, Qfree:56.3, SPmax:2.2, rpm:1800 },
+    { name: 'Delta Y4574 (est.)', role:'in', n:3, Qfree:120, SPmax:10, rpm:4500 },
+    { name: 'P12 Pro', role:'out', n:6, Qfree:77, SPmax:6.9, rpm:3000 }
+  ];
+  document.getElementById('R').value = '0.00001';
+  document.getElementById('steps').value = '100';
+  renderGroups();
+});
+resetDefaultsBtn.click(); // inicializa
+
+// Cálculo
+function computeSeries(R, steps){
+  const sArray = Array.from({length:steps},(_,i)=> (i+1)/steps );
+  const results = sArray.map(s=>{
+    const groupQs = groups.map(g => ({ name:g.name, role:g.role, Q: g.n * linQ(g.Qfree, s) }));
+    const Qin = groupQs.filter(x=>x.role==='in').reduce((a,b)=>a+b.Q,0);
+    const Qout = groupQs.filter(x=>x.role==='out').reduce((a,b)=>a+b.Q,0);
+    const Qnet = Qin - Qout;
+    const Pbox = R * (Qnet*Qnet) * sign(Qnet); // mmH2O
+    return { s, groupQs, Qin, Qout, Qnet, Pbox };
+  });
+  return { sArray, results };
+}
+
+// Desenhar gráfico (Chart.js)
+function drawChart(R, steps){
+  if(groups.length===0) return;
+  const data = computeSeries(R, steps);
+  const labels = data.sArray.map(s => Math.round(s*100));
+  const datasets = [];
+
+  // linhas por grupo (soma de ventoinhas)
+  groups.forEach((g, idx) => {
+    const vals = data.results.map(r => r.groupQs.find(x=>x.name===g.name).Q);
+    const color = PALETTE[idx % PALETTE.length];
+    const fillColor = color.replace(/1\)$/, '0.07)');
+    if(document.getElementById('showGroupLines').checked){
+      datasets.push({
+        label: (g.role==='in'?'Intake: ':'Exhaust: ') + g.name + ' x'+g.n,
+        data: vals,
+        borderColor: color,
+        backgroundColor: fillColor,
+        yAxisID: 'y',
+        tension: 0.15,
+        pointRadius: 0
+      });
+    }
+  });
+
+  // Pressão positiva e negativa para preenchimento
+  const pos = data.results.map(r => Math.max(r.Pbox, 0));
+  const neg = data.results.map(r => Math.min(r.Pbox, 0));
+  datasets.push({
+    label: 'Pressão positiva (mmH2O)',
+    data: pos,
+    borderColor: 'rgba(0,160,80,0.9)',
+    backgroundColor: 'rgba(102,255,153,0.25)',
+    fill: true,
+    yAxisID: 'y2',
+    pointRadius: 0,
+    tension: 0.1
+  });
+  datasets.push({
+    label: 'Pressão negativa (mmH2O)',
+    data: neg,
+    borderColor: 'rgba(255,80,80,0.9)',
+    backgroundColor: 'rgba(255,153,153,0.25)',
+    fill: true,
+    yAxisID: 'y2',
+    pointRadius: 0,
+    tension: 0.1
+  });
+
+  // linha de pressão
+  if(document.getElementById('showPressureLine').checked){
+    datasets.push({
+      label: 'Pressão interna (mmH2O)',
+      data: data.results.map(r=>r.Pbox),
+      borderColor: 'rgba(0,0,0,1)',
+      backgroundColor: 'rgba(0,0,0,0)',
+      yAxisID: 'y2',
+      pointRadius: 0,
+      tension: 0.2,
+      borderWidth: 2
+    });
+  }
+
+  // criar / atualizar Chart
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false, // canvas controlado pelo CSS 16:9
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        title: { display:true, text: 'Fluxo por grupo (CFM) e pressão interna (mmH2O)' },
+        tooltip: {
+          callbacks: {
+            label: function(ctx){
+              const lab = ctx.dataset.label || '';
+              return lab + ': ' + Number(ctx.raw).toFixed(3);
+            }
+          }
+        },
+        legend: { position:'top' }
+      },
+      scales: {
+        x: { title:{display:true,text:'Velocidade das ventoinhas (%)'} },
+        y: {
+          type:'linear', display:true, position:'left',
+          title:{display:true,text:'Fluxo por grupo (CFM)'}
+        },
+        y2: {
+          type:'linear', display:true, position:'right',
+          title:{display:true,text:'Pressão interna (mmH2O)'},
+          grid: { drawOnChartArea:false }
+        }
+      }
+    }
+  });
+}
+
+// Eventos
+plotBtn.addEventListener('click', ()=>{
+  const R = Number(document.getElementById('R').value) || 1e-5;
+  const steps = Number(document.getElementById('steps').value) || 100;
+  drawChart(R, steps);
+});
+
+// Export CSV
+exportCsvBtn.addEventListener('click', ()=>{
+  if(groups.length===0) { alert('Sem grupos.'); return; }
+  const R = Number(document.getElementById('R').value) || 1e-5;
+  const steps = Number(document.getElementById('steps').value) || 100;
+  const data = computeSeries(R, steps);
+  let csv = 'vel_percent';
+  groups.forEach(g=> csv+=',' + (g.role==='in'?'in_':'out_') + g.name.replace(/,/g,''));
+  csv += ',Q_in,Q_out,Q_net,P_box_mmH2O\n';
+  data.results.forEach(r=>{
+    csv += Math.round(r.s*100);
+    groups.forEach(g => {
+      const q = r.groupQs.find(x=>x.name===g.name).Q;
+      csv += ',' + q.toFixed(6);
+    });
+    csv += ',' + r.Qin.toFixed(6) + ',' + r.Qout.toFixed(6) + ',' + r.Qnet.toFixed(6) + ',' + r.Pbox.toExponential(6) + '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'pressure_flow.csv'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// inicial plot
+plotBtn.click();
+</script>
+</body>
+</html>
