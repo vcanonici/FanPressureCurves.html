@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <title>Simulador de Fluxo / Pressão da Caixa</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --sidebar-min: 15rem;
+      --sidebar-max: 34vw;
+      --gutter: clamp(0.5rem, 1.2vw, 1rem);
+      --pad: clamp(0.55rem, 1.25vw, 0.95rem);
+      --gap: 0.6rem;
+      --radius: 0.6rem;
+      --accent: #0077cc;
+      --accent-soft: rgba(0,119,204,0.1);
+      --muted: #5d6670;
+      --border: #e2e6eb;
+      --bg: #f4f6f9;
+    }
+    html{ font-size: clamp(0.9rem, 1vw, 1.1rem); }
+    body{ margin:0; font-family:"Inter", "Segoe UI", Roboto, sans-serif; color:#12181f; background:var(--bg); }
+    header{ display:flex; align-items:center; gap:0.75rem; padding:0.9rem clamp(1rem, 2vw, 2.6rem); background:#fff; box-shadow:0 1px 0 rgba(15,23,42,0.04); }
+    header strong{ font-size:1.05rem; }
+    header a{ color:var(--accent); text-decoration:none; font-weight:600; }
+    .stage{ height: calc(100vh - 3.4rem); padding: clamp(0.8rem, 1.6vw, 1.6rem); display:grid; grid-template-columns: minmax(var(--sidebar-min), var(--sidebar-max)) var(--gutter) 1fr; gap:0; box-sizing:border-box; }
+    .panel{ background:#fff; border-radius:var(--radius); box-shadow:0 8px 28px rgba(15,23,42,0.05); padding:var(--pad); overflow:auto; min-height:0; border:1px solid rgba(15,23,42,0.02); }
+    .left{ display:flex; flex-direction:column; gap:var(--gap); }
+    .section{ display:flex; flex-direction:column; gap:0.4rem; }
+    .section h2{ font-size:0.95em; margin:0; color:#15202b; }
+    label{ display:block; font-size:0.82em; color:var(--muted); }
+    input[type="number"], input[type="text"], select{ width:100%; padding:0.5rem 0.55rem; border-radius:0.5rem; border:1px solid var(--border); font-size:0.9em; background:#fefefe; box-sizing:border-box; transition:border-color 0.2s, box-shadow 0.2s; }
+    input:focus, select:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+    .grid{ display:grid; gap:0.45rem; }
+    .grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .row{ display:flex; gap:0.45rem; align-items:center; }
+    button{ cursor:pointer; border-radius:0.55rem; border:1px solid var(--border); padding:0.55rem 0.75rem; font-size:0.9em; background:#fff; transition: background 0.2s, border-color 0.2s, transform 0.15s; }
+    button.primary{ background:var(--accent); border-color:transparent; color:#fff; font-weight:600; }
+    button.primary:hover{ filter:brightness(0.95); }
+    button:hover{ border-color:#c9d2dc; }
+    .groups{ display:flex; flex-direction:column; gap:0.5rem; max-height:33vh; overflow:auto; padding-right:0.2rem; }
+    .grp{ border:1px solid rgba(15,23,42,0.06); border-radius:0.55rem; padding:0.55rem; background:#f9fafc; display:grid; grid-template-columns: minmax(0,1fr) repeat(4, minmax(0,5.3rem)) minmax(0,3.4rem); gap:0.45rem; align-items:center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6); }
+    .grp strong{ font-size:0.9em; color:#111; display:block; }
+    .grp small{ font-size:0.78em; color:var(--muted); }
+    .tag{ display:inline-block; padding:0.15rem 0.4rem; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:0.72em; font-weight:600; letter-spacing:0.03em; text-transform:uppercase; }
+    .row-actions{ display:flex; gap:0.3rem; }
+    .row-actions button{ flex:1; padding:0.45rem 0.55rem; }
+    .resizer{ width: clamp(0.45rem, 0.9vw, 1.05rem); display:flex; align-items:center; justify-content:center; cursor:col-resize; user-select:none; }
+    .resizer .bar{ width:0.33rem; height:48%; border-radius:0.4rem; background:linear-gradient(180deg,#d8dee6,#c8d0db); }
+    .toolbar{ display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center; font-size:0.82em; color:var(--muted); }
+    .toolbar label{ display:flex; gap:0.35rem; align-items:center; font-size:0.85em; }
+    .hint{ font-size:0.78em; color:var(--muted); }
+    .frame-16-9{ width:100%; height:0; padding-top:56.25%; position:relative; border-radius:0.7rem; background:linear-gradient(160deg,#ffffff,#f3f7fb); border:1px solid rgba(15,23,42,0.05); box-shadow:0 18px 48px rgba(15,23,42,0.07); }
+    canvas{ position:absolute; left:0; top:0; width:100%!important; height:100%!important; }
+    .stat{ font-size:0.82em; color:#0f172a; background:rgba(0,119,204,0.08); border-radius:0.6rem; padding:0.4rem 0.6rem; display:inline-flex; gap:0.4rem; align-items:center; }
+    @media (max-width:1024px){ .stage{ grid-template-columns:minmax(13rem, 42vw) var(--gutter) 1fr; } .grp{ grid-template-columns:minmax(0,1fr) repeat(3,minmax(0,4.6rem)) minmax(0,5rem) minmax(0,3.4rem); } }
+    @media (max-width:780px){ body{ background:#fff; } header{ flex-wrap:wrap; gap:0.4rem; } .stage{ height:auto; grid-template-columns:1fr; grid-template-rows:auto auto auto; }
+      .resizer{ display:none; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <a href="index.html">← Voltar</a>
+    <strong>Simulador de Fluxo / Pressão da Caixa</strong>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="panel left" id="leftPanel">
+      <div class="section">
+        <h2>Parâmetros globais</h2>
+        <label for="R">Resistência base R (mmH₂O / CFM²)</label>
+        <input id="R" type="number" step="1e-6" value="0.00001" />
+        <label for="steps">Passos de velocidade (pontos)</label>
+        <input id="steps" type="number" value="120" min="10" max="1000" />
+        <div class="hint">R modela filtros e grelhas. A resistência efetiva ajusta-se pelo volume e fator de fuga.</div>
+        <div class="stat" id="effectiveRDisplay" aria-live="polite"></div>
+      </div>
+
+      <div class="section">
+        <h2>Dimensões da caixa</h2>
+        <div class="grid cols-3">
+          <div>
+            <label for="box_w">Largura (cm)</label>
+            <input id="box_w" type="number" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="box_h">Altura (cm)</label>
+            <input id="box_h" type="number" min="0" step="0.1" />
+          </div>
+          <div>
+            <label for="box_d">Profundidade (cm)</label>
+            <input id="box_d" type="number" min="0" step="0.1" />
+          </div>
+        </div>
+        <label for="box_vol_l">Volume direto (litros)</label>
+        <input id="box_vol_l" type="number" min="0" step="0.1" />
+        <div class="grid cols-2">
+          <div>
+            <label for="computed_volume">Volume calculado</label>
+            <input id="computed_volume" type="text" readonly />
+          </div>
+          <div>
+            <label for="leak_factor">Fator de fuga</label>
+            <input id="leak_factor" type="number" min="0.1" step="0.1" value="1" />
+          </div>
+        </div>
+        <div class="hint">Define dimensões ou volume. O campo não editável mostra litros e m³ finais.</div>
+      </div>
+
+      <div class="section">
+        <h2>Adicionar grupo</h2>
+        <div class="grid cols-2">
+          <input id="add_name" type="text" placeholder="Nome (ex: P12 Pro)" />
+          <select id="add_role"><option value="in">Intake</option><option value="out">Exhaust</option></select>
+        </div>
+        <div class="grid cols-3">
+          <input id="add_n" type="number" value="1" min="0" />
+          <input id="add_q" type="number" value="77" step="0.1" />
+          <input id="add_sp" type="number" value="6.9" step="0.1" />
+        </div>
+        <div class="row">
+          <button id="addBtn" class="primary" style="flex:1">Adicionar grupo</button>
+          <button id="resetDefaults" style="flex:1">Restaurar padrão</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Grupos configurados</h2>
+        <div class="groups" id="groupsList" aria-live="polite"></div>
+        <div class="hint">Cada grupo representa ventoinhas idênticas em paralelo.</div>
+      </div>
+
+      <div class="section">
+        <h2>Opções e ações</h2>
+        <div class="toolbar">
+          <label><input id="showGroupLines" type="checkbox" checked /> Mostrar linhas de grupos</label>
+          <label><input id="showPressureLine" type="checkbox" checked /> Linha de pressão interna</label>
+        </div>
+        <div class="row">
+          <button id="plotBtn" class="primary" style="flex:1">Plot</button>
+          <button id="exportCsvBtn" style="flex:1">Exportar CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="resizer" id="resizer" title="Arraste para redimensionar a coluna">
+      <div class="bar" aria-hidden="true"></div>
+    </div>
+
+    <div class="panel" id="rightPanel">
+      <div class="frame-16-9">
+        <canvas id="chartCanvas" aria-label="Gráfico de fluxo e pressão"></canvas>
+      </div>
+      <p class="hint" style="margin-top:0.6rem">O ponto de equilíbrio ocorre quando o fluxo de entrada iguala o de saída.</p>
+    </div>
+  </div>
+
+  <script>
+    // Helpers numéricos e estado
+    function sign(x){ return x > 0 ? 1 : (x < 0 ? -1 : 0); }
+    function linQ(Qfree, s){ return Qfree * s; }
+    function uid(){ return Math.random().toString(36).slice(2,9); }
+
+    const V_REF_M3 = 0.05; // volume de referência (50 L)
+
+    const groupsList = document.getElementById('groupsList');
+    const addBtn = document.getElementById('addBtn');
+    const plotBtn = document.getElementById('plotBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const resetDefaultsBtn = document.getElementById('resetDefaults');
+    const effectiveRDisplay = document.getElementById('effectiveRDisplay');
+
+    const showGroupLines = document.getElementById('showGroupLines');
+    const showPressureLine = document.getElementById('showPressureLine');
+
+    const ctx = document.getElementById('chartCanvas').getContext('2d');
+    let chart = null;
+    let groups = [];
+
+    function computeBoxVolumeFromDims(){
+      const w = Number(document.getElementById('box_w').value) || 0;
+      const h = Number(document.getElementById('box_h').value) || 0;
+      const d = Number(document.getElementById('box_d').value) || 0;
+      if(w > 0 && h > 0 && d > 0){
+        return (w/100) * (h/100) * (d/100);
+      }
+      return 0;
+    }
+
+    function getBoxVolume_m3(){
+      const vol_l = Number(document.getElementById('box_vol_l').value) || 0;
+      if(vol_l > 0) return vol_l / 1000.0;
+      const fromDims = computeBoxVolumeFromDims();
+      if(fromDims > 0) return fromDims;
+      return V_REF_M3;
+    }
+
+    function updateComputedVolumeDisplay(){
+      const v_m3 = getBoxVolume_m3();
+      const v_l = v_m3 * 1000;
+      document.getElementById('computed_volume').value = `${v_l.toFixed(2)} L · ${v_m3.toFixed(4)} m³`;
+    }
+
+    function computeEffectiveResistance(){
+      const baseR = Number(document.getElementById('R').value) || 1e-5;
+      const leak = Number(document.getElementById('leak_factor').value) || 1;
+      const V_box = getBoxVolume_m3();
+      const R_eff = baseR * (V_REF_M3 / Math.max(V_box, 1e-6)) * leak;
+      return { R_eff, V_box, baseR, leak };
+    }
+
+    function updateEffectiveResistanceUI(){
+      const { R_eff, V_box } = computeEffectiveResistance();
+      effectiveRDisplay.textContent = `R efetiva = ${R_eff.toExponential(3)} mmH₂O/CFM² · Volume = ${(V_box*1000).toFixed(1)} L`;
+    }
+
+    ['box_w','box_h','box_d'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        document.getElementById('box_vol_l').value = '';
+        updateComputedVolumeDisplay();
+        updateEffectiveResistanceUI();
+      });
+    });
+    document.getElementById('box_vol_l').addEventListener('input', () => {
+      if(Number(document.getElementById('box_vol_l').value) > 0){
+        document.getElementById('box_w').value = '';
+        document.getElementById('box_h').value = '';
+        document.getElementById('box_d').value = '';
+      }
+      updateComputedVolumeDisplay();
+      updateEffectiveResistanceUI();
+    });
+    ['R','leak_factor'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        updateEffectiveResistanceUI();
+      });
+    });
+
+    function renderGroups(){
+      groupsList.innerHTML = '';
+      if(groups.length === 0){
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = 'Sem grupos definidos. Adiciona ventoinhas na secção acima.';
+        groupsList.appendChild(empty);
+        return;
+      }
+      groups.forEach((g, idx) => {
+        const div = document.createElement('div');
+        div.className = 'grp';
+        div.dataset.id = g.id;
+        div.innerHTML = `
+          <div>
+            <strong>${g.name}</strong>
+            <small>${g.role === 'in' ? 'Intake' : 'Exhaust'} · x${g.n}</small>
+          </div>
+          <div><input data-idx="${idx}" class="g_n" type="number" value="${g.n}" min="0" /></div>
+          <div><input data-idx="${idx}" class="g_q" type="number" value="${g.Qfree}" step="0.1" /></div>
+          <div><input data-idx="${idx}" class="g_sp" type="number" value="${g.SPmax}" step="0.1" /></div>
+          <div>
+            <select data-idx="${idx}" class="g_role">
+              <option value="in" ${g.role==='in'?'selected':''}>Intake</option>
+              <option value="out" ${g.role==='out'?'selected':''}>Exhaust</option>
+            </select>
+          </div>
+          <div class="row-actions">
+            <button data-idx="${idx}" class="dup" title="Duplicar">⤷</button>
+            <button data-idx="${idx}" class="del" title="Remover">✕</button>
+          </div>`;
+        groupsList.appendChild(div);
+
+        div.querySelectorAll('input,select').forEach(el => {
+          el.addEventListener('change', () => {
+            const i = Number(el.dataset.idx);
+            groups[i].n = Number(div.querySelector('.g_n').value) || 0;
+            groups[i].Qfree = Number(div.querySelector('.g_q').value) || 0;
+            groups[i].SPmax = Number(div.querySelector('.g_sp').value) || 0;
+            groups[i].role = div.querySelector('.g_role').value;
+            renderGroups();
+          });
+        });
+        div.querySelector('.dup').addEventListener('click', () => {
+          const clone = JSON.parse(JSON.stringify(g));
+          clone.id = uid();
+          groups.splice(idx + 1, 0, clone);
+          renderGroups();
+        });
+        div.querySelector('.del').addEventListener('click', () => {
+          groups.splice(idx, 1);
+          renderGroups();
+        });
+      });
+    }
+
+    addBtn.addEventListener('click', () => {
+      const name = document.getElementById('add_name').value.trim() || 'Grupo';
+      const role = document.getElementById('add_role').value;
+      const n = Number(document.getElementById('add_n').value) || 1;
+      const Q = Number(document.getElementById('add_q').value) || 0;
+      const sp = Number(document.getElementById('add_sp').value) || 0;
+      groups.push({ id: uid(), name, role, n, Qfree: Q, SPmax: sp });
+      renderGroups();
+    });
+
+    resetDefaultsBtn.addEventListener('click', () => {
+      groups = [
+        { id: uid(), name: 'Arctic P12 Silent', role:'in', n:3, Qfree:56.3, SPmax:2.2 },
+        { id: uid(), name: 'Delta Y4574 (est.)', role:'in', n:3, Qfree:120, SPmax:10 },
+        { id: uid(), name: 'P12 Pro', role:'out', n:6, Qfree:77, SPmax:6.9 }
+      ];
+      document.getElementById('R').value = '0.00001';
+      document.getElementById('steps').value = '120';
+      document.getElementById('leak_factor').value = '1';
+      document.getElementById('box_w').value = '';
+      document.getElementById('box_h').value = '';
+      document.getElementById('box_d').value = '';
+      document.getElementById('box_vol_l').value = '';
+      updateComputedVolumeDisplay();
+      updateEffectiveResistanceUI();
+      renderGroups();
+    });
+
+    function computeSeries(R_eff, steps){
+      const safeSteps = Math.max(2, Math.min(steps, 2000));
+      const sArray = Array.from({ length: safeSteps }, (_, i) => safeSteps === 1 ? 1 : i / (safeSteps - 1));
+      const results = sArray.map(s => {
+        const groupQs = groups.map(g => ({ id: g.id, role: g.role, name: g.name, Q: g.n * linQ(g.Qfree, s) }));
+        const Qin = groupQs.filter(x => x.role === 'in').reduce((a,b) => a + b.Q, 0);
+        const Qout = groupQs.filter(x => x.role === 'out').reduce((a,b) => a + b.Q, 0);
+        const Qnet = Qin - Qout;
+        const Pbox = R_eff * (Qnet * Qnet) * sign(Qnet);
+        return { s, groupQs, Qin, Qout, Qnet, Pbox };
+      });
+      return { sArray, results };
+    }
+
+    function drawChart(){
+      if(groups.length === 0){
+        alert('Adiciona pelo menos um grupo.');
+        return;
+      }
+      const steps = Number(document.getElementById('steps').value) || 120;
+      const { R_eff, V_box } = computeEffectiveResistance();
+      const data = computeSeries(R_eff, steps);
+      const labels = data.sArray.map(s => Math.round(s * 100));
+      const datasets = [];
+
+      if(showGroupLines.checked){
+        groups.forEach((g, idx) => {
+          const vals = data.results.map(r => {
+            const entry = r.groupQs.find(x => x.id === g.id);
+            return entry ? entry.Q : 0;
+          });
+          const hue = (idx * 47) % 360;
+          const color = `hsl(${hue} 70% 40%)`;
+          datasets.push({
+            label: `${g.role === 'in' ? 'Intake' : 'Exhaust'} · ${g.name} x${g.n}`,
+            data: vals,
+            borderColor: color,
+            backgroundColor: `hsla(${hue}, 70%, 40%, 0.12)`,
+            yAxisID: 'y',
+            tension: 0.16,
+            pointRadius: 0
+          });
+        });
+      }
+
+      const pos = data.results.map(r => Math.max(r.Pbox, 0));
+      const neg = data.results.map(r => Math.min(r.Pbox, 0));
+      datasets.push({
+        label: 'Pressão positiva (mmH₂O)',
+        data: pos,
+        borderColor: 'rgba(0,160,80,0.9)',
+        backgroundColor: 'rgba(102,255,153,0.22)',
+        fill: true,
+        yAxisID: 'y2',
+        pointRadius: 0,
+        tension: 0.1
+      });
+      datasets.push({
+        label: 'Pressão negativa (mmH₂O)',
+        data: neg,
+        borderColor: 'rgba(255,80,80,0.9)',
+        backgroundColor: 'rgba(255,153,153,0.22)',
+        fill: true,
+        yAxisID: 'y2',
+        pointRadius: 0,
+        tension: 0.1
+      });
+
+      if(showPressureLine.checked){
+        datasets.push({
+          label: 'Pressão interna (mmH₂O)',
+          data: data.results.map(r => r.Pbox),
+          borderColor: 'rgba(15,23,42,0.95)',
+          backgroundColor: 'rgba(0,0,0,0)',
+          yAxisID: 'y2',
+          pointRadius: 0,
+          tension: 0.18,
+          borderWidth: 2
+        });
+      }
+
+      const subtitle = `R_efetiva = ${R_eff.toExponential(3)} mmH₂O/CFM² · Volume caixa = ${(V_box*1000).toFixed(1)} L`;
+      if(chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            title: { display: true, text: 'Fluxo por grupo (CFM) e pressão interna (mmH₂O)' },
+            subtitle: { display: true, text: subtitle },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const lab = context.dataset.label || '';
+                  return `${lab}: ${Number(context.raw).toFixed(3)}`;
+                }
+              }
+            },
+            legend: { position: 'top' }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Velocidade das ventoinhas (%)' } },
+            y: { type: 'linear', position: 'left', title: { display: true, text: 'Fluxo (CFM)' } },
+            y2: { type: 'linear', position: 'right', title: { display: true, text: 'Pressão (mmH₂O)' }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    }
+
+    plotBtn.addEventListener('click', () => {
+      updateComputedVolumeDisplay();
+      updateEffectiveResistanceUI();
+      drawChart();
+    });
+
+    exportCsvBtn.addEventListener('click', () => {
+      if(groups.length === 0){
+        alert('Sem grupos para exportar.');
+        return;
+      }
+      const steps = Number(document.getElementById('steps').value) || 120;
+      const { R_eff, V_box, baseR, leak } = computeEffectiveResistance();
+      const data = computeSeries(R_eff, steps);
+      let csv = 'speed_pct';
+      groups.forEach(g => {
+        csv += ',' + g.name.replace(/,/g, '');
+      });
+      csv += ',Q_in,Q_out,Q_net,P_box_mmH2O,R_eff_mmH2O_per_CFM2,box_volume_L,base_R,leak_factor\n';
+      data.results.forEach((r, idx) => {
+        const pct = Math.round(data.sArray[idx] * 10000) / 100;
+        csv += pct.toFixed(2);
+        groups.forEach(g => {
+          const entry = r.groupQs.find(x => x.id === g.id);
+          const val = entry ? entry.Q : 0;
+          csv += ',' + val.toFixed(6);
+        });
+        csv += ',' + r.Qin.toFixed(6) + ',' + r.Qout.toFixed(6) + ',' + r.Qnet.toFixed(6) + ',' + r.Pbox.toExponential(6) + ',' + R_eff.toExponential(6) + ',' + (V_box*1000).toFixed(3) + ',' + baseR.toExponential(6) + ',' + leak.toFixed(3) + '\n';
+      });
+      const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fluxo_pressao.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    (function enableResizer(){
+      const stage = document.getElementById('stage');
+      const resizer = document.getElementById('resizer');
+      const left = document.getElementById('leftPanel');
+      let dragging = false, startX = 0, startWidth = 0;
+      resizer.addEventListener('mousedown', (e) => {
+        dragging = true;
+        startX = e.clientX;
+        startWidth = left.getBoundingClientRect().width;
+        document.body.style.userSelect = 'none';
+      });
+      window.addEventListener('mousemove', (e) => {
+        if(!dragging) return;
+        const dx = e.clientX - startX;
+        let newWidth = startWidth + dx;
+        const styles = getComputedStyle(document.documentElement);
+        const minW = parseFloat(styles.getPropertyValue('--sidebar-min')) || 240;
+        const maxW = Math.max(parseFloat(styles.getPropertyValue('--sidebar-max')) || (window.innerWidth * 0.36), 260);
+        if(newWidth < minW) newWidth = minW;
+        if(newWidth > maxW) newWidth = maxW;
+        stage.style.gridTemplateColumns = `minmax(var(--sidebar-min), ${newWidth}px) var(--gutter) 1fr`;
+        if(window.chart && window.chart.resize) window.chart.resize();
+      });
+      window.addEventListener('mouseup', () => {
+        if(dragging){
+          dragging = false;
+          document.body.style.userSelect = '';
+        }
+      });
+      resizer.addEventListener('dblclick', () => {
+        stage.style.gridTemplateColumns = 'minmax(var(--sidebar-min), var(--sidebar-max)) var(--gutter) 1fr';
+        if(window.chart && window.chart.resize) window.chart.resize();
+      });
+    })();
+
+    resetDefaultsBtn.click();
+    updateComputedVolumeDisplay();
+    updateEffectiveResistanceUI();
+  </script>
+</body>
+</html>
